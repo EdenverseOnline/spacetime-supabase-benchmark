@@ -1,0 +1,29 @@
+name: 🛡️ Server Security Audit
+
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  push:
+    paths:
+      - "server/**/Cargo.toml"
+      - "server/**/Cargo.lock"
+
+jobs:
+  audit:
+    name: 🔍 Dependency Security Scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./server
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: 📦 Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: 🕵️ Run Audit
+        run: cargo audit
