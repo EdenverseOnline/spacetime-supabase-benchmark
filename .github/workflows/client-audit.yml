@@ -1,0 +1,29 @@
+name: 🛡️ Client Security Audit
+
+on:
+  push:
+    branches: ["main", "master"]
+    paths:
+      - "package.json"
+      - "package-lock.json"
+  schedule:
+    - cron: "0 0 * * 1"
+
+jobs:
+  audit:
+    name: 🛡️ Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🟢 Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: 🛡️ Run Audit
+        run: npm audit
