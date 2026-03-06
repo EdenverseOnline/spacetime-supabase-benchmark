@@ -227,10 +227,10 @@ export class SpacetimeService implements DatabaseService {
     const id = generateOperationId();
 
     if (this.connection) {
-      const row = this.connection.db
-        .benchmark_avatar_config
-        .walletAddress
-        .find(BENCHMARK_WALLET);
+      const row =
+        this.connection.db.benchmark_avatar_config.walletAddress.find(
+          BENCHMARK_WALLET,
+        );
       if (row) {
         this.currentGear = mapRowToEquippedGear(row);
       }
