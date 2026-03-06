@@ -9,11 +9,14 @@ import {
   type AlgebraicTypeType as __AlgebraicTypeType,
   type Infer as __Infer,
 } from "spacetimedb";
+import { GearCategory } from "./types";
 
 export default __t.row({
   id: __t.string().primaryKey(),
   name: __t.string(),
-  category: __t.string(),
+  get category() {
+    return GearCategory;
+  },
   iconPath: __t.string().name("icon_path"),
   sortOrder: __t.i32().name("sort_order"),
   active: __t.bool(),

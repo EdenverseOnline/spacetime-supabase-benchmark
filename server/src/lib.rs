@@ -1,17 +1,33 @@
-use spacetimedb::{ReducerContext, Table, Timestamp, reducer, table};
+use spacetimedb::{
+    CaseConversionPolicy, ReducerContext, SpacetimeType, Table, Timestamp, reducer, table,
+};
 
-#[table(name = benchmark_gear_def, public)]
+#[spacetimedb::settings]
+const CASE_CONVERSION_POLICY: CaseConversionPolicy = CaseConversionPolicy::None;
+
+#[derive(SpacetimeType, Clone, Debug)]
+pub enum GearCategory {
+    Hat,
+    Hood,
+    Shirt,
+    Robe,
+    Pants,
+    Gloves,
+    Shoes,
+}
+
+#[table(accessor = benchmark_gear_def, public)]
 pub struct BenchmarkGearDef {
     #[primary_key]
     pub id: String,
     pub name: String,
-    pub category: String,
+    pub category: GearCategory,
     pub icon_path: String,
     pub sort_order: i32,
     pub active: bool,
 }
 
-#[table(name = benchmark_avatar_config, public)]
+#[table(accessor = benchmark_avatar_config, public)]
 pub struct BenchmarkAvatarConfig {
     #[primary_key]
     pub wallet_address: String,
@@ -25,11 +41,27 @@ pub struct BenchmarkAvatarConfig {
     pub updated_at: Timestamp,
 }
 
+fn set_gear_slot(
+    config: &mut BenchmarkAvatarConfig,
+    category: &GearCategory,
+    gear_id: Option<String>,
+) {
+    match category {
+        GearCategory::Hat => config.hat = gear_id,
+        GearCategory::Hood => config.hood = gear_id,
+        GearCategory::Shirt => config.shirt = gear_id,
+        GearCategory::Robe => config.robe = gear_id,
+        GearCategory::Pants => config.pants = gear_id,
+        GearCategory::Gloves => config.gloves = gear_id,
+        GearCategory::Shoes => config.shoes = gear_id,
+    }
+}
+
 #[reducer]
 pub fn update_benchmark_avatar_gear(
     ctx: &ReducerContext,
     wallet_address: String,
-    category: String,
+    category: GearCategory,
     gear_id: Option<String>,
 ) {
     let now = ctx.timestamp;
@@ -52,19 +84,7 @@ pub fn update_benchmark_avatar_gear(
             updated_at: now,
         };
 
-        match category.as_str() {
-            "hat" => updated.hat = gear_id,
-            "hood" => updated.hood = gear_id,
-            "shirt" => updated.shirt = gear_id,
-            "robe" => updated.robe = gear_id,
-            "pants" => updated.pants = gear_id,
-            "gloves" => updated.gloves = gear_id,
-            "shoes" => updated.shoes = gear_id,
-            _ => {
-                log::warn!("Unknown gear category: {}", category);
-                return;
-            }
-        }
+        set_gear_slot(&mut updated, &category, gear_id);
 
         ctx.db
             .benchmark_avatar_config()
@@ -83,19 +103,7 @@ pub fn update_benchmark_avatar_gear(
             updated_at: now,
         };
 
-        match category.as_str() {
-            "hat" => config.hat = gear_id,
-            "hood" => config.hood = gear_id,
-            "shirt" => config.shirt = gear_id,
-            "robe" => config.robe = gear_id,
-            "pants" => config.pants = gear_id,
-            "gloves" => config.gloves = gear_id,
-            "shoes" => config.shoes = gear_id,
-            _ => {
-                log::warn!("Unknown gear category: {}", category);
-                return;
-            }
-        }
+        set_gear_slot(&mut config, &category, gear_id);
 
         ctx.db.benchmark_avatar_config().insert(config);
     }
@@ -103,84 +111,102 @@ pub fn update_benchmark_avatar_gear(
 
 #[reducer]
 pub fn seed_benchmark_gear_defs(ctx: &ReducerContext) {
-    let gear_defs = vec![
-        ("hat_iron", "Iron Helm", "hat", "/gear/hat_iron.png", 1),
-        ("hat_gold", "Golden Crown", "hat", "/gear/hat_gold.png", 2),
+    let gear_defs: Vec<(&str, &str, GearCategory, &str, i32)> = vec![
+        (
+            "hat_iron",
+            "Iron Helm",
+            GearCategory::Hat,
+            "/gear/hat_iron.png",
+            1,
+        ),
+        (
+            "hat_gold",
+            "Golden Crown",
+            GearCategory::Hat,
+            "/gear/hat_gold.png",
+            2,
+        ),
         (
             "hood_leather",
             "Leather Hood",
-            "hood",
+            GearCategory::Hood,
             "/gear/hood_leather.png",
             1,
         ),
         (
             "hood_shadow",
             "Shadow Cowl",
-            "hood",
+            GearCategory::Hood,
             "/gear/hood_shadow.png",
             2,
         ),
         (
             "shirt_chainmail",
             "Chainmail",
-            "shirt",
+            GearCategory::Shirt,
             "/gear/shirt_chain.png",
             1,
         ),
         (
             "shirt_plate",
             "Plate Armor",
-            "shirt",
+            GearCategory::Shirt,
             "/gear/shirt_plate.png",
             2,
         ),
-        ("robe_mage", "Mage Robe", "robe", "/gear/robe_mage.png", 1),
+        (
+            "robe_mage",
+            "Mage Robe",
+            GearCategory::Robe,
+            "/gear/robe_mage.png",
+            1,
+        ),
         (
             "robe_sage",
             "Sage Vestment",
-            "robe",
+            GearCategory::Robe,
             "/gear/robe_sage.png",
             2,
         ),
         (
             "pants_leather",
             "Leather Greaves",
-            "pants",
+            GearCategory::Pants,
             "/gear/pants_leather.png",
             1,
         ),
         (
             "pants_iron",
             "Iron Legguards",
-            "pants",
+            GearCategory::Pants,
             "/gear/pants_iron.png",
             2,
         ),
         (
             "gloves_hide",
             "Hide Gloves",
-            "gloves",
+            GearCategory::Gloves,
             "/gear/gloves_hide.png",
             1,
         ),
         (
             "gloves_dragon",
             "Dragonscale Gauntlets",
-            "gloves",
+            GearCategory::Gloves,
             "/gear/gloves_dragon.png",
             2,
         ),
         (
             "shoes_boot",
             "Traveler Boots",
-            "shoes",
+            GearCategory::Shoes,
             "/gear/shoes_boot.png",
             1,
         ),
         (
             "shoes_winged",
             "Winged Sandals",
-            "shoes",
+            GearCategory::Shoes,
             "/gear/shoes_winged.png",
             2,
         ),
@@ -197,7 +223,7 @@ pub fn seed_benchmark_gear_defs(ctx: &ReducerContext) {
             ctx.db.benchmark_gear_def().insert(BenchmarkGearDef {
                 id: id.to_string(),
                 name: name.to_string(),
-                category: category.to_string(),
+                category,
                 icon_path: icon_path.to_string(),
                 sort_order,
                 active: true,
@@ -208,10 +234,10 @@ pub fn seed_benchmark_gear_defs(ctx: &ReducerContext) {
 
 #[reducer(client_connected)]
 pub fn client_connected(ctx: &ReducerContext) {
-    log::info!("Benchmark client connected: {:?}", ctx.sender);
+    log::info!("Benchmark client connected: {:?}", ctx.sender());
 }
 
 #[reducer(client_disconnected)]
 pub fn identity_disconnected(ctx: &ReducerContext) {
-    log::info!("Benchmark client disconnected: {:?}", ctx.sender);
+    log::info!("Benchmark client disconnected: {:?}", ctx.sender());
 }
