@@ -10,8 +10,12 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+import { GearCategory } from "./types";
+
 export default {
   walletAddress: __t.string(),
-  category: __t.string(),
+  get category() {
+    return GearCategory;
+  },
   gearId: __t.option(__t.string()),
 };
