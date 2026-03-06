@@ -7,11 +7,13 @@ import type {
 } from "../types/benchmark.types";
 import type { GearSlot, GearItem, EquippedGear } from "../types/gear.types";
 import { preciseNow, measureRtt, generateOperationId } from "../utils/timing";
-import { DbConnection } from "../module_bindings";
+import { DbConnection, tables } from "../module_bindings";
+import { GearCategory } from "../module_bindings/types";
 import {
   getRandomGearItemForSlot,
   type AvatarGearItem,
 } from "../constants/avatarConstants";
+import { GEAR_SLOTS } from "../schemas/gear.schema";
 
 const BENCHMARK_WALLET = "benchmark_test_wallet_001";
 const SPACETIME_WRITE_TIMEOUT_MS = 5000;
@@ -29,6 +31,41 @@ export function getRandomGearForSlot(slot: GearSlot): GearItem {
   return avatarGearToGearItem(getRandomGearItemForSlot(slot));
 }
 
+function fieldToGearItem(
+  value: string | null | undefined,
+  slot: GearSlot,
+): GearItem | null {
+  if (!value) return null;
+  return { id: value, name: value, slot, iconPath: "" };
+}
+
+function mapRowToEquippedGear(row: {
+  hat?: string | null;
+  hood?: string | null;
+  shirt?: string | null;
+  robe?: string | null;
+  pants?: string | null;
+  gloves?: string | null;
+  shoes?: string | null;
+}): EquippedGear {
+  const gear: EquippedGear = {};
+  for (const slot of GEAR_SLOTS) {
+    const value = row[slot as keyof typeof row];
+    gear[slot] = fieldToGearItem(value ?? null, slot);
+  }
+  return gear;
+}
+
+const GEAR_SLOT_TO_CATEGORY: Record<GearSlot, GearCategory> = {
+  hat: { tag: "Hat" },
+  hood: { tag: "Hood" },
+  shirt: { tag: "Shirt" },
+  robe: { tag: "Robe" },
+  pants: { tag: "Pants" },
+  gloves: { tag: "Gloves" },
+  shoes: { tag: "Shoes" },
+};
+
 export class SpacetimeService implements DatabaseService {
   readonly backendType: BackendType = "spacetimedb";
   private connection: DbConnection | null = null;
@@ -44,17 +81,17 @@ export class SpacetimeService implements DatabaseService {
       try {
         const conn = DbConnection.builder()
           .withUri(uri)
-          .withModuleName(moduleName)
+          .withDatabaseName(moduleName)
           .withToken(localStorage.getItem("benchmark_auth_token") || "")
           .onConnect(() => {
             this._connected = true;
             this.connection = conn;
 
-            conn.db.benchmarkAvatarConfig.onInsert(() => {
+            conn.db.benchmark_avatar_config.onInsert(() => {
               this.flushPendingWriteResolvers();
             });
 
-            conn.db.benchmarkAvatarConfig.onUpdate(() => {
+            conn.db.benchmark_avatar_config.onUpdate(() => {
               this.flushPendingWriteResolvers();
             });
 
@@ -66,7 +103,7 @@ export class SpacetimeService implements DatabaseService {
               .onError((err: unknown) => {
                 console.error("[SpacetimeDB] Subscription error:", err);
               })
-              .subscribe("SELECT * FROM benchmark_avatar_config");
+              .subscribe([tables.benchmark_avatar_config]);
           })
           .onDisconnect(() => {
             this._connected = false;
@@ -93,7 +130,7 @@ export class SpacetimeService implements DatabaseService {
     return new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingWriteResolvers = this.pendingWriteResolvers.filter(
-          (r) => r !== resolve,
+          (r) => r !== wrappedResolve,
         );
         reject(new Error("SpacetimeDB write timeout"));
       }, SPACETIME_WRITE_TIMEOUT_MS);
@@ -148,7 +185,7 @@ export class SpacetimeService implements DatabaseService {
 
       this.connection.reducers.updateBenchmarkAvatarGear({
         walletAddress: BENCHMARK_WALLET,
-        category: slot,
+        category: GEAR_SLOT_TO_CATEGORY[slot],
         gearId,
       });
 
@@ -190,39 +227,12 @@ export class SpacetimeService implements DatabaseService {
     const id = generateOperationId();
 
     if (this.connection) {
-      const rows =
-        this.connection.db.benchmarkAvatarConfig.walletAddress.find(
-          BENCHMARK_WALLET,
-        );
-      if (rows) {
-        this.currentGear = {
-          hat: rows.hat
-            ? { id: rows.hat, name: rows.hat, slot: "hat", iconPath: "" }
-            : null,
-          hood: rows.hood
-            ? { id: rows.hood, name: rows.hood, slot: "hood", iconPath: "" }
-            : null,
-          shirt: rows.shirt
-            ? { id: rows.shirt, name: rows.shirt, slot: "shirt", iconPath: "" }
-            : null,
-          robe: rows.robe
-            ? { id: rows.robe, name: rows.robe, slot: "robe", iconPath: "" }
-            : null,
-          pants: rows.pants
-            ? { id: rows.pants, name: rows.pants, slot: "pants", iconPath: "" }
-            : null,
-          gloves: rows.gloves
-            ? {
-                id: rows.gloves,
-                name: rows.gloves,
-                slot: "gloves",
-                iconPath: "",
-              }
-            : null,
-          shoes: rows.shoes
-            ? { id: rows.shoes, name: rows.shoes, slot: "shoes", iconPath: "" }
-            : null,
-        };
+      const row = this.connection.db
+        .benchmark_avatar_config
+        .walletAddress
+        .find(BENCHMARK_WALLET);
+      if (row) {
+        this.currentGear = mapRowToEquippedGear(row);
       }
     }
 
@@ -372,49 +382,7 @@ export class SupabaseService implements DatabaseService {
           .single();
 
         if (!error && data) {
-          this.currentGear = {
-            hat: data.hat
-              ? { id: data.hat, name: data.hat, slot: "hat", iconPath: "" }
-              : null,
-            hood: data.hood
-              ? { id: data.hood, name: data.hood, slot: "hood", iconPath: "" }
-              : null,
-            shirt: data.shirt
-              ? {
-                  id: data.shirt,
-                  name: data.shirt,
-                  slot: "shirt",
-                  iconPath: "",
-                }
-              : null,
-            robe: data.robe
-              ? { id: data.robe, name: data.robe, slot: "robe", iconPath: "" }
-              : null,
-            pants: data.pants
-              ? {
-                  id: data.pants,
-                  name: data.pants,
-                  slot: "pants",
-                  iconPath: "",
-                }
-              : null,
-            gloves: data.gloves
-              ? {
-                  id: data.gloves,
-                  name: data.gloves,
-                  slot: "gloves",
-                  iconPath: "",
-                }
-              : null,
-            shoes: data.shoes
-              ? {
-                  id: data.shoes,
-                  name: data.shoes,
-                  slot: "shoes",
-                  iconPath: "",
-                }
-              : null,
-          };
+          this.currentGear = mapRowToEquippedGear(data);
         }
       }
     } catch {
